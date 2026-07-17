@@ -17,6 +17,7 @@ from flask_dance.contrib.google import make_google_blueprint, google
 from sqlalchemy import Integer, String, Text, ForeignKey
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.middleware.proxy_fix import ProxyFix
 import cloudinary
 import cloudinary.uploader
 
@@ -24,10 +25,26 @@ from forms import CreatePostForm, RegisterForm, LoginForm, CommentForm, SearchFo
 
 load_dotenv()
 
+
+def get_database_url():
+    url = os.environ.get('DATABASE_URL', 'sqlite:///posts.db')
+    if url.startswith('postgres://'):
+        url = url.replace('postgres://', 'postgresql://', 1)
+    return url
+
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or os.environ.get('FLASK_SECRET_KEY') or 'dev-secret-key-change-in-production'
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///posts.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = get_database_url()
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
 app.config['CKEDITOR_PKG_TYPE'] = 'full'
+
+if os.environ.get('RENDER') or os.environ.get('FLASK_ENV') == 'production':
+    app.config['SESSION_COOKIE_SECURE'] = True
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['PREFERRED_URL_SCHEME'] = 'https'
+
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 CKEditor(app)
 Bootstrap5(app)

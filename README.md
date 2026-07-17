@@ -40,6 +40,12 @@ cp .env.example .env
 | `CLOUDINARY_CLOUD_NAME` | For media | Cloudinary cloud name |
 | `CLOUDINARY_API_KEY` | For media | Cloudinary API key |
 | `CLOUDINARY_API_SECRET` | For media | Cloudinary API secret |
+| `MAIL_ADDRESS` | For email | Gmail address for SMTP |
+| `MAIL_APP_PASSWORD` | For email | Gmail App Password |
+
+## Deploy (free)
+
+See **[DEPLOY.md](DEPLOY.md)** for a full step-by-step guide to deploy on **Render + Neon** (PostgreSQL), including Google OAuth URLs and all environment variables.
 
 ## Run
 
@@ -50,7 +56,7 @@ python main.py
 Production:
 
 ```bash
-gunicorn main:app
+gunicorn main:app --bind 0.0.0.0:$PORT --workers 1
 ```
 
 ## Author

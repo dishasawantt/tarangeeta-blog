@@ -34,7 +34,7 @@
         
         <div class="post-content">{{ post.body|safe }}</div>
         
-        {% if current_user.is_authenticated and current_user.email == "dishasawantt@gmail.com" %}
+        {% if current_user.is_authenticated and current_user.email == ADMIN_EMAIL %}
         <div class="d-flex justify-content-end mb-4 mt-4">
           <a class="btn btn-primary" href="{{ url_for('edit_post', post_id=post.id) }}"><i class="fas fa-edit me-2"></i>Edit Post</a>
         </div>

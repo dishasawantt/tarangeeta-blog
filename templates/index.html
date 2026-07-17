@@ -28,7 +28,7 @@
         </div>
       </div>
 
-      {% if current_user.is_authenticated and current_user.email == "dishasawantt@gmail.com" %}
+      {% if current_user.is_authenticated and current_user.email == ADMIN_EMAIL %}
       <div class="d-flex justify-content-center mb-4">
         <a class="btn btn-primary btn-lg" href="{{ url_for('add_new_post') }}"><i class="fas fa-pen me-2"></i>Create New Post</a>
       </div>
@@ -43,7 +43,7 @@
             <p class="post-card-subtitle">{{ post.subtitle }}</p>
             <div class="post-card-meta"><span>{{ post.author.name }}</span><span>·</span><span>{{ post.date }}</span></div>
           </a>
-          {% if current_user.is_authenticated and current_user.email == "dishasawantt@gmail.com" %}
+          {% if current_user.is_authenticated and current_user.email == ADMIN_EMAIL %}
           <a href="{{ url_for('delete_post', post_id=post.id) }}" class="post-delete" title="Delete"><i class="fas fa-trash-alt"></i></a>
           {% endif %}
         </div>
