@@ -1,4 +1,4 @@
-# Tarangeeta
+# tarangeeta-blog
 
 > Personal spiritual and tech blog with Flask CMS — user auth, rich-text posts, Cloudinary media, Google OAuth, and comments.
 
