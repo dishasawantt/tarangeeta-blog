@@ -1,0 +1,30 @@
+{% set og_title = "Page Not Found | Tarangeeta" %}
+{% include "header.html" %}
+
+<header class="masthead page-masthead" style="background-image: url('https://res.cloudinary.com/dxxkklkqy/image/upload/q_auto,f_auto/v1767996799/about-bg_irziwj.jpg')">
+  <div class="container position-relative px-4 px-lg-5">
+    <div class="row gx-4 gx-lg-5 justify-content-center">
+      <div class="col-md-10 col-lg-8 col-xl-7">
+        <div class="page-heading text-center no-box">
+          <h1 class="sanskrit-title">404</h1>
+          <span class="subheading cursive-text">... this page has drifted out of reach ...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<article>
+  <div class="container-fluid px-4 px-lg-5">
+    <div class="row justify-content-center">
+      <div class="col-12 col-lg-10 col-xl-9">
+        <div class="post-content about-content text-center">
+          <p>The page you're looking for doesn't exist or may have been moved.</p>
+          <p><a href="{{ url_for('get_all_posts') }}">Return home</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</article>
+
+{% include "footer.html" %}

@@ -2,18 +2,20 @@ import os
 import hashlib
 import smtplib
 import secrets
+from xml.sax.saxutils import escape
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import date
 from functools import wraps
 
 from dotenv import load_dotenv
-from flask import Flask, abort, render_template, redirect, url_for, flash, request
+from flask import Flask, abort, render_template, redirect, url_for, flash, request, g
 from flask_bootstrap import Bootstrap5
 from flask_ckeditor import CKEditor
 from flask_login import UserMixin, login_user, LoginManager, current_user, logout_user
 from flask_sqlalchemy import SQLAlchemy
 from flask_dance.contrib.google import make_google_blueprint, google
+from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import Integer, String, Text, ForeignKey
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -33,13 +35,17 @@ def get_database_url():
     return url
 
 
+IS_PRODUCTION = bool(os.environ.get('RENDER') or os.environ.get('FLASK_ENV') == 'production')
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or os.environ.get('FLASK_SECRET_KEY') or 'dev-secret-key-change-in-production'
 app.config['SQLALCHEMY_DATABASE_URI'] = get_database_url()
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
 app.config['CKEDITOR_PKG_TYPE'] = 'full'
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 31536000  # static assets are cache-busted via ?v= query params
 
-if os.environ.get('RENDER') or os.environ.get('FLASK_ENV') == 'production':
+if IS_PRODUCTION:
     app.config['SESSION_COOKIE_SECURE'] = True
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['PREFERRED_URL_SCHEME'] = 'https'
@@ -48,6 +54,7 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 CKEditor(app)
 Bootstrap5(app)
+csrf = CSRFProtect(app)
 
 cloudinary.config(
     cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME'),
@@ -57,7 +64,7 @@ cloudinary.config(
 
 MAIL_ADDRESS = os.environ.get('MAIL_ADDRESS')
 MAIL_APP_PASSWORD = os.environ.get('MAIL_APP_PASSWORD')
-MUSIC_URL = os.environ.get('MUSIC_URL', 'https://res.cloudinary.com/dxxkklkqy/video/upload/v1767996842/relaxing-music-with-nature-sound-and-flute-284493_ayiq0g.mp3')
+MUSIC_URL = os.environ.get('MUSIC_URL', 'https://res.cloudinary.com/dxxkklkqy/video/upload/q_auto/v1767996842/relaxing-music-with-nature-sound-and-flute-284493_ayiq0g.mp3')
 
 def send_email(name, email, message):
     if not MAIL_ADDRESS or not MAIL_APP_PASSWORD:
@@ -191,7 +198,37 @@ def gravatar_filter(email, size=100):
 
 @app.context_processor
 def inject_globals():
-    return dict(search_form=SearchForm(), ADMIN_EMAIL=ADMIN_EMAIL, MUSIC_URL=MUSIC_URL)
+    return dict(search_form=SearchForm(), ADMIN_EMAIL=ADMIN_EMAIL, MUSIC_URL=MUSIC_URL, csp_nonce=g.csp_nonce)
+
+
+@app.before_request
+def set_csp_nonce():
+    g.csp_nonce = secrets.token_urlsafe(16)
+
+
+@app.after_request
+def set_security_headers(response):
+    csp = (
+        "default-src 'self'; "
+        f"script-src 'self' 'nonce-{g.csp_nonce}' https://cdn.jsdelivr.net https://use.fontawesome.com https://cdn.ckeditor.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.ckeditor.com; "
+        "font-src 'self' data: https://fonts.gstatic.com https://use.fontawesome.com https://cdn.ckeditor.com; "
+        "img-src 'self' data: https://res.cloudinary.com https://www.gravatar.com https://images.unsplash.com https://cdn.ckeditor.com; "
+        "media-src 'self' https://res.cloudinary.com; "
+        "connect-src 'self' https://cdn.ckeditor.com; "
+        "form-action 'self' https://accounts.google.com; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
+        "object-src 'none'"
+    )
+    response.headers['Content-Security-Policy'] = csp
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+    if IS_PRODUCTION:
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    return response
 
 
 def admin_only(f):
@@ -409,7 +446,7 @@ def edit_post(post_id):
     return render_template("make-post.html", form=form, is_edit=True, current_user=current_user, post=post)
 
 
-@app.route("/delete/<int:post_id>")
+@app.route("/delete/<int:post_id>", methods=["POST"])
 @admin_only
 def delete_post(post_id):
     db.session.delete(db.get_or_404(BlogPost, post_id))
@@ -458,6 +495,34 @@ def view_messages():
 @app.route("/about")
 def about():
     return render_template("about.html", current_user=current_user)
+
+
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template("404.html", current_user=current_user), 404
+
+
+@app.route("/favicon.ico")
+def favicon_ico():
+    return redirect("https://res.cloudinary.com/dxxkklkqy/image/upload/v1767996799/favicon_x5lrfp.png")
+
+
+@app.route("/robots.txt")
+def robots_txt():
+    body = f"User-agent: *\nAllow: /\nSitemap: {request.host_url}sitemap.xml\n"
+    return app.response_class(body, mimetype="text/plain")
+
+
+@app.route("/sitemap.xml")
+def sitemap_xml():
+    posts = db.session.execute(db.select(BlogPost)).scalars().all()
+    urls = [request.host_url, request.host_url + "about", request.host_url + "contact"]
+    urls += [f"{request.host_url}post/{post.id}" for post in posts]
+    body = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for url in urls:
+        body.append(f"<url><loc>{escape(url)}</loc></url>")
+    body.append("</urlset>")
+    return app.response_class("\n".join(body), mimetype="application/xml")
 
 
 if __name__ == "__main__":

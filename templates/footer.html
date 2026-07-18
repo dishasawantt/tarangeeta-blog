@@ -21,11 +21,11 @@
   </div>
 </footer>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scripts.js') }}?v=1"></script>
 <audio id="bgMusic" loop preload="auto">
   <source src="{{ MUSIC_URL }}" type="audio/mpeg">
 </audio>
-<script>
+<script nonce="{{ csp_nonce }}">
 (function() {
   var music = document.getElementById('bgMusic');
   var musicBtn = document.getElementById('musicToggle');

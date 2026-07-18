@@ -1,3 +1,6 @@
+{% set og_title = post.title %}
+{% set og_description = post.subtitle %}
+{% set og_image = post.media_url if post.media_type == 'image' else 'https://images.unsplash.com/photo-1478720568477-152d9b164e26?w=1200' %}
 {% include "header.html" %}
 
 {% if post.media_type == 'video' %}
@@ -46,7 +49,7 @@
           <form method="POST" class="comment-form">
             {{ form.hidden_tag() }}
             <div class="d-flex gap-3">
-              <img src="{{ current_user.email | gravatar }}" class="rounded-circle" width="40" height="40" />
+              <img src="{{ current_user.email | gravatar }}" class="rounded-circle" width="40" height="40" alt="{{ current_user.name }}" />
               <div class="flex-grow-1">
                 <textarea name="comment_text" class="form-control comment-input" rows="2" placeholder="Share your thoughts..." required></textarea>
                 <div class="text-end mt-2"><button type="submit" class="btn btn-sm comment-btn">Post</button></div>
@@ -62,7 +65,7 @@
             {% for comment in post.comments %}
             <div class="comment-card" {% if loop.index > 2 %}style="display: none;"{% endif %}>
               <div class="d-flex gap-3">
-                <img src="{{ comment.comment_author.email | gravatar }}" class="rounded-circle" width="36" height="36" />
+                <img src="{{ comment.comment_author.email | gravatar }}" class="rounded-circle" width="36" height="36" alt="{{ comment.comment_author.name }}" />
                 <div>
                   <span class="comment-author">{{ comment.comment_author.name }}</span>
                   <div class="comment-text">{{ comment.text|striptags }}</div>
@@ -72,7 +75,13 @@
             {% endfor %}
           </div>
           {% if post.comments|length > 2 %}
-          <button class="show-more-btn" onclick="document.querySelectorAll('.comment-card').forEach(c=>c.style.display='block');this.style.display='none';">Show more ({{ post.comments|length - 2 }} more)</button>
+          <button class="show-more-btn" id="showMoreComments">Show more ({{ post.comments|length - 2 }} more)</button>
+          <script nonce="{{ csp_nonce }}">
+          document.getElementById('showMoreComments').addEventListener('click', function() {
+            document.querySelectorAll('.comment-card').forEach(function(c) { c.style.display = 'block'; });
+            this.style.display = 'none';
+          });
+          </script>
           {% endif %}
           {% endif %}
         </div>

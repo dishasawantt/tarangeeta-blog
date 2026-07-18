@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "tarangeeta-flask",
+      "runtimeExecutable": "venv/bin/python",
+      "runtimeArgs": ["main.py"],
+      "port": 5001
+    }
+  ]
+}
