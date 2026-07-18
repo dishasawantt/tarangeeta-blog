@@ -206,11 +206,19 @@ def set_csp_nonce():
     g.csp_nonce = secrets.token_urlsafe(16)
 
 
+# CKEditor 4 bootstraps its editable area by injecting an inline <script> into
+# its own iframe document, which can't carry our per-request nonce. A strict
+# nonce-only script-src silently leaves the editor uneditable, so the two
+# admin editing pages get a relaxed (still self-hosted-only) policy instead.
+CKEDITOR_ENDPOINTS = {'add_new_post', 'edit_post'}
+
+
 @app.after_request
 def set_security_headers(response):
+    script_src = "'self' 'unsafe-inline'" if request.endpoint in CKEDITOR_ENDPOINTS else f"'self' 'nonce-{g.csp_nonce}'"
     csp = (
         "default-src 'self'; "
-        f"script-src 'self' 'nonce-{g.csp_nonce}' https://cdn.jsdelivr.net https://use.fontawesome.com https://cdn.ckeditor.com; "
+        f"script-src {script_src} https://cdn.jsdelivr.net https://use.fontawesome.com https://cdn.ckeditor.com; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.ckeditor.com; "
         "font-src 'self' data: https://fonts.gstatic.com https://use.fontawesome.com https://cdn.ckeditor.com; "
         "img-src 'self' data: https://res.cloudinary.com https://www.gravatar.com https://images.unsplash.com https://cdn.ckeditor.com; "
