@@ -862,11 +862,11 @@ video {
 [data-theme="dark"] .comment-author { color: #E8DDD0; }
 [data-theme="dark"] .comment-text { color: #D8D0C8; }
 
-/* Responsive images in posts - force override CKEditor inline styles */
+/* Responsive images in posts - cap overflow but respect an explicit
+   width/style CKEditor's resize handles set on the img itself */
 .post-content img {
-  max-width: 100% !important;
-  width: auto !important;
-  height: auto !important;
+  max-width: 100%;
+  height: auto;
   display: block;
   margin: 0.5rem auto;
 }

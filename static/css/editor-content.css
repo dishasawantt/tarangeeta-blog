@@ -1,0 +1,35 @@
+/* Mirrors templates' .post-content typography so the CKEditor iframe
+   previews text/images the way they'll actually look once published. */
+body {
+  font-family: 'Lora', serif;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: #3D3D3D;
+  padding: 1rem 1.25rem;
+}
+
+p { margin-bottom: 0.75rem; }
+
+h2, h3, h4 {
+  font-family: 'Playfair Display', Georgia, serif;
+  color: #5C4A3D;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+h2 { font-size: 1.8rem; border-bottom: 2px solid #C4B5A0; padding-bottom: 0.4rem; }
+h3 { font-size: 1.4rem; }
+
+a { color: #C4937A; text-decoration: underline; }
+
+blockquote {
+  border-left: 4px solid #C4937A;
+  padding: 1.25rem;
+  margin: 1.5rem 0;
+  font-style: italic;
+  color: #9A8B7A;
+  background: #FDF8F3;
+  border-radius: 0 8px 8px 0;
+}
+
+img { max-width: 100%; height: auto; }

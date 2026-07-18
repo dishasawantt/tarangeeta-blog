@@ -19,7 +19,16 @@
     <div class="row">
       <div class="col-lg-8 col-md-10 mx-auto">
         {{ ckeditor.load() }}
-        {{ ckeditor.config(name='body') }}
+        <script nonce="{{ csp_nonce }}">
+        CKEDITOR.config.versionCheck = false;
+        CKEDITOR.config.imageUploadUrl = '{{ url_for("upload_ckeditor_image") }}';
+        CKEDITOR.config.filebrowserUploadUrl = '{{ url_for("upload_ckeditor_image") }}';
+        CKEDITOR.config.removeButtons = 'ExportPdf,Templates,Preview,Print,Save,NewPage,Language';
+        CKEDITOR.config.contentsCss = ['https://cdn.ckeditor.com/4.22.1/full/contents.css', '/static/css/editor-content.css?v=1'];
+        CKEDITOR.config.fileTools_requestHeaders = { 'X-CSRFToken': '{{ csrf_token() }}' };
+        document.getElementById('body').classList.remove('ckeditor');
+        CKEDITOR.replace('body');
+        </script>
         <script nonce="{{ csp_nonce }}">
         CKEDITOR.on('dialogDefinition', function(ev) {
           if (ev.data.name === 'image') {

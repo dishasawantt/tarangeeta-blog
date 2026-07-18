@@ -11,7 +11,7 @@ from functools import wraps
 from dotenv import load_dotenv
 from flask import Flask, abort, render_template, redirect, url_for, flash, request, g
 from flask_bootstrap import Bootstrap5
-from flask_ckeditor import CKEditor
+from flask_ckeditor import CKEditor, upload_success, upload_fail
 from flask_login import UserMixin, login_user, LoginManager, current_user, logout_user
 from flask_sqlalchemy import SQLAlchemy
 from flask_dance.contrib.google import make_google_blueprint, google
@@ -403,6 +403,18 @@ def show_post(post_id):
         db.session.add(Comment(text=form.comment_text.data, comment_author=current_user, parent_post=post))
         db.session.commit()
     return render_template("post.html", post=post, current_user=current_user, form=form)
+
+
+@app.route("/upload-ckeditor-image", methods=["POST"])
+@admin_only
+def upload_ckeditor_image():
+    f = request.files.get('upload')
+    if not f or get_media_type(f.filename) != 'image':
+        return upload_fail(message="Please upload an image file.")
+    url, media_type = upload_media(f)
+    if not url:
+        return upload_fail(message="Image upload failed. Check Cloudinary configuration.")
+    return upload_success(url=url, filename=f.filename)
 
 
 @app.route("/new-post", methods=["GET", "POST"])
