@@ -196,6 +196,9 @@ class BlogPost(db.Model):
     og_image: Mapped[str] = mapped_column(String(500), nullable=True)
     canonical_url: Mapped[str] = mapped_column(String(500), nullable=True)
     published_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    # Phase 3 — page design
+    content_width: Mapped[str] = mapped_column(String(20), nullable=True)
+    page_bg: Mapped[str] = mapped_column(String(300), nullable=True)
     tags = relationship("Tag", secondary=post_tags, back_populates="posts")
     comments = relationship("Comment", back_populates="parent_post", cascade="all, delete-orphan")
 
@@ -365,6 +368,8 @@ def run_startup_migrations():
         'og_image': "VARCHAR(500)",
         'canonical_url': "VARCHAR(500)",
         'published_at': "TIMESTAMP",
+        'content_width': "VARCHAR(20)",
+        'page_bg': "VARCHAR(300)",
     }
     for name, sql_type in new_columns.items():
         if name not in existing_columns:
@@ -764,6 +769,10 @@ def autosave_post():
     post.meta_description = (payload.get('meta_description') or '').strip() or None
     post.og_image = (payload.get('og_image') or '').strip() or None
     post.canonical_url = (payload.get('canonical_url') or '').strip() or None
+    cw = (payload.get('content_width') or '').strip()
+    post.content_width = cw if cw in ('narrow', 'normal', 'wide', 'full') else None
+    # page_bg accepts colors/gradients only — strip chars that could inject extra CSS
+    post.page_bg = (re.sub(r'[^#a-zA-Z0-9,.%()\s-]', '', payload.get('page_bg') or '').strip()[:300]) or None
     if 'tags' in payload:
         post.tags = resolve_tags(payload.get('tags'))
 

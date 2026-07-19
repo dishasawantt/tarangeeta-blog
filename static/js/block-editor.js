@@ -394,6 +394,201 @@
   }
 
   /* =====================================================================
+     Phase 3 — Canva-style design blocks
+  ===================================================================== */
+  function el(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+  function num(v, d) { v = parseFloat(v); return isNaN(v) ? d : v; }
+  function iconBtn(icon, title) { var b = el('button', 'be-des-btn', '<i class="fas ' + icon + '"></i>'); b.type = 'button'; b.title = title || ''; return b; }
+  function beUpload(file) {
+    var fd = new FormData(); fd.append('image', file);
+    return fetch(CFG.uploadUrl, { method: 'POST', headers: { 'X-CSRFToken': CFG.csrf }, body: fd }).then(function (r) { return r.json(); });
+  }
+  var CALLOUT_ICONS = { info: 'fa-circle-info', success: 'fa-circle-check', warning: 'fa-triangle-exclamation', idea: 'fa-lightbulb', quote: 'fa-quote-right', note: 'fa-pen' };
+  var CALLOUT_V = ['info', 'success', 'warning', 'idea', 'quote', 'note'];
+  var IMG_LAYOUTS = ['contained', 'wide', 'full', 'left', 'right'];
+
+  class AdvancedImage {
+    static get toolbox() { return { title: 'Image', icon: '<svg width="17" height="15" viewBox="0 0 512 512"><path fill="currentColor" d="M448 80c8.8 0 16 7.2 16 16V416c0 8.8-7.2 16-16 16H64c-8.8 0-16-7.2-16-16V96c0-8.8 7.2-16 16-16H448zM64 32C28.7 32 0 60.7 0 96V416c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H64zM189.3 226.7l-90.7 121.3H413.3l-64-85.3-42.7 56.9-58.7-92.9zM128 176a32 32 0 1 0 0-64 32 32 0 1 0 0 64z"/></svg>' }; }
+    static get sanitize() { return { url: false, caption: { br: true, b: {}, i: {}, a: { href: true } }, alt: false, layout: false, filters: false, opacity: false, radius: false, rotate: false, flipH: false, flipV: false, border: false, shadow: false }; }
+    constructor(o) {
+      this.api = o.api;
+      var d = o.data || {}, f = d.file || {}, fl = d.filters || {};
+      this.data = {
+        url: d.url || f.url || '', caption: d.caption || '', alt: d.alt || '',
+        layout: IMG_LAYOUTS.indexOf(d.layout) >= 0 ? d.layout : (d.stretched ? 'full' : 'contained'),
+        filters: { brightness: num(fl.brightness, 100), contrast: num(fl.contrast, 100), saturate: num(fl.saturate, 100) },
+        opacity: num(d.opacity, 100), radius: num(d.radius, 0), rotate: num(d.rotate, 0),
+        flipH: !!d.flipH, flipV: !!d.flipV, border: !!(d.border || d.withBorder), shadow: !!d.shadow
+      };
+    }
+    render() { this.wrap = el('div', 'be-aimg'); this.data.url ? this.renderImage() : this.renderUploader(); return this.wrap; }
+    renderUploader() {
+      var self = this; this.wrap.innerHTML = '';
+      var up = el('div', 'be-aimg-upload', '<i class="fas fa-image"></i><span>Upload an image or paste a URL</span>');
+      var pick = el('button', 'be-aimg-pick', 'Choose file'); pick.type = 'button';
+      var urlin = el('input', 'be-input'); urlin.placeholder = 'Paste image URL';
+      pick.addEventListener('click', function () { self.pickFile(); });
+      urlin.addEventListener('change', function () { if (urlin.value.trim()) { self.data.url = urlin.value.trim(); self.renderImage(); markDirty(); scheduleSave(); } });
+      up.appendChild(pick); this.wrap.appendChild(up); this.wrap.appendChild(urlin);
+    }
+    pickFile() {
+      var self = this, input = el('input'); input.type = 'file'; input.accept = 'image/*';
+      input.onchange = function () {
+        if (!input.files.length) return; toast('Uploading…');
+        beUpload(input.files[0]).then(function (j) { if (j.success && j.file) { self.data.url = j.file.url; self.renderImage(); markDirty(); scheduleSave(); toast('Image added'); } else toast(j.message || 'Upload failed'); }).catch(function () { toast('Upload failed'); });
+      };
+      input.click();
+    }
+    renderImage() {
+      var self = this; this.wrap.innerHTML = '';
+      this.fig = el('figure', 'be-aimg-fig');
+      this.img = el('img'); this.img.src = this.data.url; this.img.alt = this.data.alt;
+      this.fig.appendChild(this.img); this.wrap.appendChild(this.fig);
+      this.wrap.appendChild(this.buildBar());
+      this.adjustPanel = this.buildAdjust(); this.wrap.appendChild(this.adjustPanel);
+      this.cap = el('div', 'be-aimg-cap'); this.cap.contentEditable = 'true'; this.cap.dataset.placeholder = 'Add a caption…'; this.cap.innerHTML = this.data.caption;
+      this.cap.addEventListener('input', function () { markDirty(); scheduleSave(); });
+      this.wrap.appendChild(this.cap);
+      this.applyStyle();
+    }
+    buildBar() {
+      var self = this, bar = el('div', 'be-aimg-bar');
+      var g1 = el('div', 'be-des-group'); this.layoutBtns = {};
+      [['contained', 'fa-image', 'Contained'], ['wide', 'fa-left-right', 'Wide'], ['full', 'fa-expand', 'Full width'], ['left', 'fa-align-left', 'Float left'], ['right', 'fa-align-right', 'Float right']].forEach(function (L) {
+        var b = iconBtn(L[1], L[2]); if (self.data.layout === L[0]) b.classList.add('is-active');
+        b.addEventListener('click', function () { self.data.layout = L[0]; self.applyStyle(); markDirty(); scheduleSave(); });
+        self.layoutBtns[L[0]] = b; g1.appendChild(b);
+      });
+      var g2 = el('div', 'be-des-group');
+      var rot = iconBtn('fa-rotate-right', 'Rotate 90°'); rot.addEventListener('click', function () { self.data.rotate = (self.data.rotate + 90) % 360; self.applyStyle(); markDirty(); scheduleSave(); });
+      var fh = iconBtn('fa-arrows-left-right', 'Flip horizontal'); if (self.data.flipH) fh.classList.add('is-active'); fh.addEventListener('click', function () { self.data.flipH = !self.data.flipH; fh.classList.toggle('is-active', self.data.flipH); self.applyStyle(); markDirty(); scheduleSave(); });
+      var fv = iconBtn('fa-arrows-up-down', 'Flip vertical'); if (self.data.flipV) fv.classList.add('is-active'); fv.addEventListener('click', function () { self.data.flipV = !self.data.flipV; fv.classList.toggle('is-active', self.data.flipV); self.applyStyle(); markDirty(); scheduleSave(); });
+      g2.appendChild(rot); g2.appendChild(fh); g2.appendChild(fv);
+      var g3 = el('div', 'be-des-group');
+      var bd = iconBtn('fa-border-all', 'Border'); if (self.data.border) bd.classList.add('is-active'); bd.addEventListener('click', function () { self.data.border = !self.data.border; bd.classList.toggle('is-active', self.data.border); self.applyStyle(); markDirty(); scheduleSave(); });
+      var sh = iconBtn('fa-clone', 'Shadow'); if (self.data.shadow) sh.classList.add('is-active'); sh.addEventListener('click', function () { self.data.shadow = !self.data.shadow; sh.classList.toggle('is-active', self.data.shadow); self.applyStyle(); markDirty(); scheduleSave(); });
+      var adj = iconBtn('fa-sliders', 'Adjust filters'); adj.addEventListener('click', function () { self.adjustPanel.style.display = self.adjustPanel.style.display === 'none' ? 'block' : 'none'; });
+      var rep = iconBtn('fa-arrows-rotate', 'Replace image'); rep.addEventListener('click', function () { self.data.url = ''; self.renderUploader(); markDirty(); });
+      g3.appendChild(bd); g3.appendChild(sh); g3.appendChild(adj); g3.appendChild(rep);
+      bar.appendChild(g1); bar.appendChild(g2); bar.appendChild(g3);
+      return bar;
+    }
+    buildAdjust() {
+      var self = this, p = el('div', 'be-aimg-adjust'); p.style.display = 'none';
+      function slider(label, min, max, get, set) {
+        var row = el('div', 'be-slider-row'); var val = el('span', 'be-slider-val', get());
+        var inp = el('input'); inp.type = 'range'; inp.min = min; inp.max = max; inp.value = get();
+        inp.addEventListener('input', function () { set(parseFloat(inp.value)); val.textContent = get(); self.applyStyle(); markDirty(); });
+        inp.addEventListener('change', scheduleSave);
+        row.appendChild(el('label', null, label)); row.appendChild(inp); row.appendChild(val); return row;
+      }
+      p.appendChild(slider('Brightness', 0, 200, function () { return self.data.filters.brightness; }, function (v) { self.data.filters.brightness = v; }));
+      p.appendChild(slider('Contrast', 0, 200, function () { return self.data.filters.contrast; }, function (v) { self.data.filters.contrast = v; }));
+      p.appendChild(slider('Saturation', 0, 200, function () { return self.data.filters.saturate; }, function (v) { self.data.filters.saturate = v; }));
+      p.appendChild(slider('Opacity', 0, 100, function () { return self.data.opacity; }, function (v) { self.data.opacity = v; }));
+      p.appendChild(slider('Roundness', 0, 60, function () { return self.data.radius; }, function (v) { self.data.radius = v; }));
+      var altrow = el('div', 'be-slider-row'); var altin = el('input', 'be-input'); altin.value = self.data.alt; altin.placeholder = 'Alt text (accessibility)';
+      altin.addEventListener('input', function () { self.data.alt = altin.value; self.img.alt = altin.value; markDirty(); scheduleSave(); });
+      altrow.appendChild(el('label', null, 'Alt')); altrow.appendChild(altin); p.appendChild(altrow);
+      var reset = el('button', 'be-des-reset', 'Reset adjustments'); reset.type = 'button';
+      reset.addEventListener('click', function () { self.data.filters = { brightness: 100, contrast: 100, saturate: 100 }; self.data.opacity = 100; self.data.radius = 0; self.data.rotate = 0; self.data.flipH = false; self.data.flipV = false; self.renderImage(); self.adjustPanel.style.display = 'block'; markDirty(); scheduleSave(); });
+      p.appendChild(reset); return p;
+    }
+    applyStyle() {
+      var d = this.data, f = [], t = [];
+      if (d.filters.brightness != 100) f.push('brightness(' + d.filters.brightness + '%)');
+      if (d.filters.contrast != 100) f.push('contrast(' + d.filters.contrast + '%)');
+      if (d.filters.saturate != 100) f.push('saturate(' + d.filters.saturate + '%)');
+      if (d.rotate) t.push('rotate(' + d.rotate + 'deg)');
+      if (d.flipH) t.push('scaleX(-1)'); if (d.flipV) t.push('scaleY(-1)');
+      this.img.style.filter = f.join(' '); this.img.style.transform = t.join(' ');
+      this.img.style.opacity = d.opacity / 100; this.img.style.borderRadius = d.radius + 'px';
+      this.fig.className = 'be-aimg-fig be-aimg-' + d.layout + (d.border ? ' be-aimg-border' : '') + (d.shadow ? ' be-aimg-shadow' : '');
+      if (this.layoutBtns) for (var k in this.layoutBtns) this.layoutBtns[k].classList.toggle('is-active', k === d.layout);
+    }
+    save() { if (this.cap) this.data.caption = this.cap.innerHTML; return this.data; }
+  }
+
+  class CalloutTool {
+    static get toolbox() { return { title: 'Callout', icon: '<svg width="16" height="16" viewBox="0 0 512 512"><path fill="currentColor" d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zm-40-176h24V272H216c-13.3 0-24-10.7-24-24s10.7-24 24-24h48c13.3 0 24 10.7 24 24v88h8c13.3 0 24 10.7 24 24s-10.7 24-24 24H216c-13.3 0-24-10.7-24-24s10.7-24 24-24zm40-208a32 32 0 1 1 0 64 32 32 0 1 1 0-64z"/></svg>' }; }
+    static get sanitize() { return { variant: false, icon: false, text: { br: true, b: {}, i: {}, u: {}, a: { href: true }, mark: {}, span: { style: true, 'class': true } } }; }
+    constructor(o) { this.api = o.api; var d = o.data || {}; this.data = { variant: CALLOUT_V.indexOf(d.variant) >= 0 ? d.variant : 'info', icon: d.icon || '', text: d.text || '' }; }
+    render() {
+      var self = this;
+      this.wrap = el('div', 'be-callout pc-callout pc-callout-' + this.data.variant);
+      this.iconEl = el('span', 'pc-callout-icon', '<i class="fas ' + (this.data.icon || CALLOUT_ICONS[this.data.variant]) + '"></i>');
+      this.body = el('div', 'pc-callout-body'); this.body.contentEditable = 'true'; this.body.dataset.placeholder = 'Write a callout…'; this.body.innerHTML = this.data.text;
+      this.body.addEventListener('input', function () { markDirty(); scheduleSave(); });
+      var picker = el('div', 'be-callout-picker');
+      CALLOUT_V.forEach(function (v) {
+        var b = el('button', 'be-cv be-cv-' + v, '<i class="fas ' + CALLOUT_ICONS[v] + '"></i>'); b.type = 'button'; b.title = v; if (v === self.data.variant) b.classList.add('is-active');
+        b.addEventListener('click', function () { self.data.variant = v; self.data.icon = ''; self.wrap.className = 'be-callout pc-callout pc-callout-' + v; self.iconEl.innerHTML = '<i class="fas ' + CALLOUT_ICONS[v] + '"></i>'; [].forEach.call(picker.children, function (c) { c.classList.remove('is-active'); }); b.classList.add('is-active'); markDirty(); scheduleSave(); });
+        picker.appendChild(b);
+      });
+      this.wrap.appendChild(this.iconEl); this.wrap.appendChild(this.body); this.wrap.appendChild(picker);
+      return this.wrap;
+    }
+    save() { return { variant: this.data.variant, icon: this.data.icon, text: this.body.innerHTML }; }
+  }
+
+  class ButtonTool {
+    static get toolbox() { return { title: 'Button', icon: '<svg width="18" height="14" viewBox="0 0 576 512"><path fill="currentColor" d="M64 112c-8.8 0-16 7.2-16 16V384c0 8.8 7.2 16 16 16H512c8.8 0 16-7.2 16-16V128c0-8.8-7.2-16-16-16H64zM0 128C0 92.7 28.7 64 64 64H512c35.3 0 64 28.7 64 64V384c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V128z"/></svg>' }; }
+    static get sanitize() { return { label: false, url: false, style: false, align: false }; }
+    constructor(o) { this.api = o.api; var d = o.data || {}; this.data = { label: d.label || 'Click here', url: d.url || '', style: ['solid', 'outline', 'soft'].indexOf(d.style) >= 0 ? d.style : 'solid', align: ['left', 'center', 'right'].indexOf(d.align) >= 0 ? d.align : 'left' }; }
+    render() {
+      var self = this; this.wrap = el('div', 'be-btnblock');
+      this.pv = el('div', 'be-btn-preview pc-align-' + this.data.align);
+      this.btn = el('a', 'pc-btn pc-btn-' + this.data.style); this.btn.contentEditable = 'true'; this.btn.innerHTML = this.data.label;
+      this.btn.addEventListener('input', function () { markDirty(); scheduleSave(); });
+      this.btn.addEventListener('keydown', function (e) { if (e.key === 'Enter') e.preventDefault(); });
+      this.pv.appendChild(this.btn);
+      var c = el('div', 'be-des-controls');
+      var urlin = el('input', 'be-input'); urlin.placeholder = 'https://…'; urlin.value = this.data.url;
+      urlin.addEventListener('input', function () { self.data.url = urlin.value; markDirty(); scheduleSave(); });
+      var ss = el('select', 'be-select'); ['solid', 'outline', 'soft'].forEach(function (s) { var o2 = el('option', null, s); o2.value = s; if (s === self.data.style) o2.selected = true; ss.appendChild(o2); });
+      ss.addEventListener('change', function () { self.data.style = ss.value; self.btn.className = 'pc-btn pc-btn-' + ss.value; markDirty(); scheduleSave(); });
+      var ag = el('div', 'be-des-group'); ['left', 'center', 'right'].forEach(function (a) { var b = iconBtn('fa-align-' + a, a); if (a === self.data.align) b.classList.add('is-active'); b.addEventListener('click', function () { self.data.align = a; self.pv.className = 'be-btn-preview pc-align-' + a; [].forEach.call(ag.children, function (x) { x.classList.remove('is-active'); }); b.classList.add('is-active'); markDirty(); scheduleSave(); }); ag.appendChild(b); });
+      c.appendChild(urlin); c.appendChild(ss); c.appendChild(ag);
+      this.wrap.appendChild(this.pv); this.wrap.appendChild(c); return this.wrap;
+    }
+    save() { return { label: this.btn.textContent, url: this.data.url, style: this.data.style, align: this.data.align }; }
+  }
+
+  class HeroTool {
+    static get toolbox() { return { title: 'Hero / Banner', icon: '<svg width="18" height="14" viewBox="0 0 576 512"><path fill="currentColor" d="M0 96C0 60.7 28.7 32 64 32H512c35.3 0 64 28.7 64 64V416c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V96zm352 96a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM64 384H512V320l-96-96-96 96-64-64L64 448V384z"/></svg>' }; }
+    static get sanitize() { return { heading: { br: true, b: {}, i: {} }, subheading: { br: true, b: {}, i: {} }, image: false, bg: false, align: false, height: false, buttonLabel: false, buttonUrl: false }; }
+    constructor(o) { this.api = o.api; var d = o.data || {}; this.data = { heading: d.heading || '', subheading: d.subheading || '', image: d.image || '', bg: /^#[0-9a-fA-F]{3,8}$/.test(d.bg || '') ? d.bg : '#5C4A3D', align: ['left', 'center', 'right'].indexOf(d.align) >= 0 ? d.align : 'center', height: ['small', 'medium', 'large'].indexOf(d.height) >= 0 ? d.height : 'medium', buttonLabel: d.buttonLabel || '', buttonUrl: d.buttonUrl || '' }; }
+    render() {
+      var self = this; this.wrap = el('div', 'be-heroblock');
+      this.hero = el('div', 'be-hero-edit be-hero-' + this.data.height + ' pc-align-' + this.data.align);
+      this.h = el('div', 'be-hero-h'); this.h.contentEditable = 'true'; this.h.dataset.placeholder = 'Hero heading'; this.h.innerHTML = this.data.heading;
+      this.sub = el('div', 'be-hero-sub'); this.sub.contentEditable = 'true'; this.sub.dataset.placeholder = 'Supporting text'; this.sub.innerHTML = this.data.subheading;
+      this.h.addEventListener('input', function () { markDirty(); scheduleSave(); });
+      this.sub.addEventListener('input', function () { markDirty(); scheduleSave(); });
+      this.hero.appendChild(this.h); this.hero.appendChild(this.sub);
+      this.applyBg(); this.wrap.appendChild(this.hero);
+      var c = el('div', 'be-des-controls');
+      var imgb = el('button', 'be-des-cbtn', '<i class="fas fa-image"></i> Image'); imgb.type = 'button'; imgb.addEventListener('click', function () { self.pickBg(); });
+      var color = el('input'); color.type = 'color'; color.value = this.data.bg; color.title = 'Background color'; color.addEventListener('input', function () { self.data.bg = color.value; self.data.image = ''; self.applyBg(); markDirty(); scheduleSave(); });
+      var clr = el('button', 'be-des-cbtn', 'Clear image'); clr.type = 'button'; clr.addEventListener('click', function () { self.data.image = ''; self.applyBg(); markDirty(); scheduleSave(); });
+      var hs = el('select', 'be-select'); ['small', 'medium', 'large'].forEach(function (hh) { var o2 = el('option', null, hh); o2.value = hh; if (hh === self.data.height) o2.selected = true; hs.appendChild(o2); }); hs.addEventListener('change', function () { self.data.height = hs.value; self.syncHeroClass(); markDirty(); scheduleSave(); });
+      var ag = el('div', 'be-des-group'); ['left', 'center', 'right'].forEach(function (a) { var b = iconBtn('fa-align-' + a, a); if (a === self.data.align) b.classList.add('is-active'); b.addEventListener('click', function () { self.data.align = a; self.syncHeroClass(); [].forEach.call(ag.children, function (x) { x.classList.remove('is-active'); }); b.classList.add('is-active'); markDirty(); scheduleSave(); }); ag.appendChild(b); });
+      var bl = el('input', 'be-input'); bl.placeholder = 'Button label (optional)'; bl.value = this.data.buttonLabel; bl.addEventListener('input', function () { self.data.buttonLabel = bl.value; markDirty(); scheduleSave(); });
+      var bu = el('input', 'be-input'); bu.placeholder = 'Button URL'; bu.value = this.data.buttonUrl; bu.addEventListener('input', function () { self.data.buttonUrl = bu.value; markDirty(); scheduleSave(); });
+      [imgb, color, clr, hs, ag, bl, bu].forEach(function (x) { c.appendChild(x); });
+      this.wrap.appendChild(c); return this.wrap;
+    }
+    syncHeroClass() { this.hero.className = 'be-hero-edit be-hero-' + this.data.height + ' pc-align-' + this.data.align + (this.data.image ? ' be-hero-hasimg' : ''); }
+    applyBg() {
+      if (this.data.image) { this.hero.style.background = ''; this.hero.style.backgroundImage = "linear-gradient(rgba(0,0,0,.35),rgba(0,0,0,.35)),url('" + this.data.image + "')"; }
+      else { this.hero.style.backgroundImage = ''; this.hero.style.background = this.data.bg; }
+      this.syncHeroClass();
+    }
+    pickBg() { var self = this, input = el('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = function () { if (!input.files.length) return; toast('Uploading…'); beUpload(input.files[0]).then(function (j) { if (j.success && j.file) { self.data.image = j.file.url; self.applyBg(); markDirty(); scheduleSave(); toast('Background set'); } else toast(j.message || 'Upload failed'); }); }; input.click(); }
+    save() { return { heading: this.h.innerHTML, subheading: this.sub.innerHTML, image: this.data.image, bg: this.data.bg, align: this.data.align, height: this.data.height, buttonLabel: this.data.buttonLabel, buttonUrl: this.data.buttonUrl }; }
+  }
+
+  /* =====================================================================
      Editor init
   ===================================================================== */
   var state = { ready: false, dirty: false, saving: false, postId: CFG.postId || null };
@@ -411,14 +606,10 @@
       code: { class: CodeTool, config: { placeholder: 'Code' } },
       delimiter: { class: Delimiter },
       table: { class: Table, inlineToolbar: true },
-      image: {
-        class: ImageTool,
-        config: {
-          endpoints: { byFile: CFG.uploadUrl, byUrl: CFG.fetchUrl },
-          additionalRequestHeaders: { 'X-CSRFToken': CFG.csrf },
-          field: 'image', types: 'image/*', captionPlaceholder: 'Caption…'
-        }
-      },
+      image: { class: AdvancedImage },
+      callout: { class: CalloutTool, inlineToolbar: true },
+      button: { class: ButtonTool },
+      hero: { class: HeroTool, inlineToolbar: true },
       gallery: { class: GalleryTool, config: { uploadUrl: CFG.galleryUrl, csrf: CFG.csrf } },
       caption: { class: CaptionTool },
       // inline
@@ -453,7 +644,8 @@
     var replace = false;
     if (idx >= 0) {
       var blk = editor.blocks.getBlockByIndex(idx);
-      if (blk && blk.isEmpty) { replace = true; }
+      // Only swap out an empty *paragraph* — never a freshly-inserted design block.
+      if (blk && blk.isEmpty && blk.name === 'paragraph') { replace = true; }
     }
     var at = (idx >= 0) ? (replace ? idx : idx + 1) : editor.blocks.getBlocksCount();
     editor.blocks.insert(type, data || {}, {}, at, true, replace);
@@ -473,6 +665,9 @@
     { type: 'delimiter', label: 'Divider', icon: 'fa-grip-lines', keys: 'divider hr delimiter separator line' },
     { type: 'image', label: 'Image', icon: 'fa-image', keys: 'image img photo picture' },
     { type: 'gallery', label: 'Gallery', icon: 'fa-images', keys: 'gallery grid collage images carousel' },
+    { type: 'hero', label: 'Hero / Banner', icon: 'fa-panorama', keys: 'hero banner cover section header' },
+    { type: 'callout', label: 'Callout', icon: 'fa-circle-info', keys: 'callout note box tip info warning idea' },
+    { type: 'button', label: 'Button', icon: 'fa-hand-pointer', keys: 'button cta link action' },
     { type: 'table', label: 'Table', icon: 'fa-table', keys: 'table grid' },
     { type: 'caption', label: 'Caption', icon: 'fa-closed-captioning', keys: 'caption credit small' }
   ];
@@ -547,7 +742,11 @@
     metaDesc: document.getElementById('beMetaDesc'),
     ogImage: document.getElementById('beOgImage'),
     canonical: document.getElementById('beCanonical'),
-    publishAt: document.getElementById('bePublishAt')
+    publishAt: document.getElementById('bePublishAt'),
+    contentWidth: document.getElementById('beContentWidth'),
+    pageBg: document.getElementById('bePageBg'),
+    pageBgColor: document.getElementById('bePageBgColor'),
+    pageBgClear: document.getElementById('bePageBgClear')
   };
   function parseTags(v) {
     return (v || '').split(',').map(function (t) { return t.trim(); }).filter(Boolean);
@@ -602,6 +801,8 @@
         meta_description: els.metaDesc.value.trim(),
         og_image: els.ogImage.value.trim(),
         canonical_url: els.canonical.value.trim(),
+        content_width: els.contentWidth.value,
+        page_bg: els.pageBg.value.trim(),
         content_json: saved
       };
       return fetch(CFG.autosaveUrl, {
@@ -689,6 +890,17 @@
   [els.slug, els.tags, els.excerpt, els.metaTitle, els.metaDesc, els.ogImage, els.canonical].forEach(function (el) {
     if (el) el.addEventListener('input', function () { markDirty(); scheduleSave(); });
   });
+
+  // Page design: content width + background (with a live preview on the canvas)
+  function applyPageBg() {
+    var bg = els.pageBg.value.trim();
+    document.getElementById('beCanvas').style.background = bg || '';
+  }
+  els.contentWidth.addEventListener('change', function () { markDirty(); scheduleSave(); });
+  els.pageBg.addEventListener('input', function () { applyPageBg(); markDirty(); scheduleSave(); });
+  els.pageBgColor.addEventListener('input', function () { els.pageBg.value = els.pageBgColor.value; applyPageBg(); markDirty(); scheduleSave(); });
+  els.pageBgClear.addEventListener('click', function () { els.pageBg.value = ''; applyPageBg(); markDirty(); scheduleSave(); });
+  applyPageBg();
 
   // Device preview
   [].forEach.call(document.querySelectorAll('.be-device-btn'), function (btn) {

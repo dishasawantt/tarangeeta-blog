@@ -38,10 +38,10 @@
   </div>
 </header>
 
-<article>
+<article{% if post.page_bg %} style="background: {{ post.page_bg }}"{% endif %}>
   <div class="container-fluid px-4 px-lg-5">
     <div class="row justify-content-center">
-      <div class="col-12 col-lg-10 col-xl-9">
+      <div class="col-12 {{ '' if post.content_width in ('wide', 'full') else 'col-lg-10 col-xl-9' }}">
         {% if post.layout_type == 'canvas' %}
         <div class="canvas-post-wrapper mx-auto" id="canvasWrapper">
           <iframe id="canvasFrame" src="{{ url_for('show_post_canvas_frame', post_id=post.id) }}" title="{{ post.title }}"></iframe>
@@ -80,7 +80,7 @@
         </nav>
         {% endif %}
 
-        <div class="post-content">{{ post.body|safe }}</div>
+        <div class="post-content pc-w-{{ post.content_width or 'normal' }}">{{ post.body|safe }}</div>
 
         {% if post.tags %}
         <div class="post-tags">

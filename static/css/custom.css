@@ -1084,3 +1084,54 @@ video {
 .related-cat { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--coral); }
 .related-name { font-family: 'Playfair Display', serif; font-size: 1.05rem; color: var(--deep-teal); line-height: 1.3; }
 .related-sub { font-size: 0.85rem; color: var(--soft-gray); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* ============================================================
+   Phase 3 — design blocks (published)
+   ============================================================ */
+/* Content-width variants */
+.post-content.pc-w-narrow { max-width: 720px; }
+.post-content.pc-w-normal { max-width: 950px; }
+.post-content.pc-w-wide { max-width: 1150px; }
+.post-content.pc-w-full { max-width: 100%; }
+
+/* Image layouts */
+.post-content .pc-img-contained img { max-width: 100%; margin: 0 auto; display: block; }
+.post-content .pc-img-wide { width: calc(100% + 5rem); margin: 1.4rem -2.5rem; }
+.post-content .pc-img-wide img { width: 100%; display: block; }
+.post-content .pc-img-full { width: 100vw; max-width: 100vw; margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); border-radius: 0; }
+.post-content .pc-img-full img { width: 100%; display: block; }
+.post-content .pc-img-left { float: left; max-width: 46%; margin: 0.4rem 1.5rem 0.8rem 0; }
+.post-content .pc-img-right { float: right; max-width: 46%; margin: 0.4rem 0 0.8rem 1.5rem; }
+.post-content .pc-image.pc-shadow img { box-shadow: 0 12px 34px rgba(0,0,0,.22); }
+@media (max-width: 640px) {
+  .post-content .pc-img-left, .post-content .pc-img-right { float: none; max-width: 100%; margin: 1.2rem 0; }
+  .post-content .pc-img-wide { width: 100%; margin: 1.4rem 0; }
+}
+
+/* Callout */
+.post-content .pc-callout { display: flex; gap: 12px; padding: 14px 18px; border-radius: 10px; border-left: 4px solid; margin: 1.4rem 0; }
+.post-content .pc-callout p { margin: 0; text-align: left; }
+.post-content .pc-callout-icon { flex: 0 0 auto; font-size: 1.1rem; padding-top: 2px; }
+.post-content .pc-callout-body { flex: 1; }
+.pc-callout-info { background: #EAF1F8; border-color: #4A78A8; color: #2E4C6B; } .pc-callout-info .pc-callout-icon { color: #4A78A8; }
+.pc-callout-success { background: #E6F1E8; border-color: #3B7A4B; color: #2C5738; } .pc-callout-success .pc-callout-icon { color: #3B7A4B; }
+.pc-callout-warning { background: #F8EEDB; border-color: #B5843C; color: #7A5A22; } .pc-callout-warning .pc-callout-icon { color: #B5843C; }
+.pc-callout-idea { background: #F0EAF5; border-color: #8A6BA8; color: #543D6B; } .pc-callout-idea .pc-callout-icon { color: #8A6BA8; }
+.pc-callout-quote { background: #F6EBE3; border-color: var(--coral); color: #7A5A48; } .pc-callout-quote .pc-callout-icon { color: var(--coral); }
+.pc-callout-note { background: #EEEAE3; border-color: var(--soft-teal); color: #5A4D3E; } .pc-callout-note .pc-callout-icon { color: var(--soft-teal); }
+
+/* Button */
+.post-content .pc-btn-wrap { margin: 1.4rem 0; }
+.post-content .pc-btn { display: inline-block; padding: 11px 26px; border-radius: 28px; font-weight: 600; text-decoration: none; font-size: .98rem; transition: all .15s; }
+.pc-btn-solid { background: var(--coral); color: #fff !important; } .pc-btn-solid:hover { background: var(--deep-teal); }
+.pc-btn-outline { border: 2px solid var(--coral); color: var(--coral) !important; } .pc-btn-outline:hover { background: var(--coral); color: #fff !important; }
+.pc-btn-soft { background: rgba(196,147,122,.18); color: var(--coral) !important; } .pc-btn-soft:hover { background: rgba(196,147,122,.32); }
+
+/* Hero / banner */
+.post-content .pc-hero { border-radius: 14px; overflow: hidden; padding: 3.2rem 2rem; color: #fff; margin: 1.8rem 0; background-size: cover; background-position: center; display: flex; flex-direction: column; }
+.post-content .pc-hero-small { padding: 2rem; } .post-content .pc-hero-large { padding: 5rem 2rem; }
+.post-content .pc-hero.pc-align-center { align-items: center; }
+.post-content .pc-hero.pc-align-right { align-items: flex-end; }
+.post-content .pc-hero-inner { max-width: 660px; }
+.post-content .pc-hero h2 { color: #fff; font-size: 2.2rem; margin: 0 0 .5rem; border: none; padding: 0; text-shadow: 0 2px 12px rgba(0,0,0,.35); }
+.post-content .pc-hero p { color: #fff; font-size: 1.15rem; opacity: .96; margin: 0 0 1rem; text-align: inherit; text-shadow: 0 1px 8px rgba(0,0,0,.3); }

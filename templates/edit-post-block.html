@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Dancing+Script:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
-  <link href="{{ url_for('static', filename='css/block-editor.css') }}?v=2" rel="stylesheet" />
+  <link href="{{ url_for('static', filename='css/block-editor.css') }}?v=3" rel="stylesheet" />
   <script nonce="{{ csp_nonce }}">document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'light');</script>
 </head>
 <body class="be-editing">
@@ -152,6 +152,28 @@
         </div>
       </details>
 
+      <details class="be-details">
+        <summary><i class="fas fa-palette me-2"></i>Page design</summary>
+        <div class="be-field">
+          <label for="beContentWidth">Content width</label>
+          <select id="beContentWidth" class="be-select">
+            {% set cw = post.content_width if post else 'normal' %}
+            <option value="narrow" {{ 'selected' if cw == 'narrow' else '' }}>Narrow</option>
+            <option value="normal" {{ 'selected' if cw in (none, '', 'normal') else '' }}>Normal</option>
+            <option value="wide" {{ 'selected' if cw == 'wide' else '' }}>Wide</option>
+            <option value="full" {{ 'selected' if cw == 'full' else '' }}>Full width</option>
+          </select>
+        </div>
+        <div class="be-field">
+          <label for="bePageBg">Page background</label>
+          <div class="be-bg-row">
+            <input type="color" id="bePageBgColor" value="#fdf8f3" title="Pick a color" />
+            <input type="text" id="bePageBg" class="be-input" placeholder="#fff, rgb() or gradient" value="{{ post.page_bg if post and post.page_bg else '' }}" />
+          </div>
+          <button type="button" id="bePageBgClear" class="be-des-cbtn" style="margin-top:6px">Clear background</button>
+        </div>
+      </details>
+
       <div class="be-field">
         <label>Document</label>
         <div class="be-doc-stats">
@@ -195,10 +217,9 @@
 <script src="https://cdn.jsdelivr.net/npm/@editorjs/quote@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/@editorjs/code@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/@editorjs/delimiter@1"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/image@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/@editorjs/table@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/editorjs-undo@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/editorjs-drag-drop@1"></script>
-<script src="{{ url_for('static', filename='js/block-editor.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='js/block-editor.js') }}?v=7"></script>
 </body>
 </html>

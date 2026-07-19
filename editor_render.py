@@ -57,6 +57,39 @@ def clean_inline(text):
     )
 
 
+def safe_url(url):
+    """Allow only http(s)/mailto/relative/anchor hrefs (blocks javascript: etc.)."""
+    url = (url or "").strip()
+    if not url:
+        return ""
+    if url.lower().startswith(("http://", "https://", "mailto:", "/", "#")):
+        return escape(url, quote=True)
+    return ""
+
+
+def safe_icon(icon):
+    """FontAwesome class token, sanitized (e.g. 'fa-lightbulb')."""
+    return re.sub(r"[^a-z0-9\- ]", "", (icon or "").lower())[:40]
+
+
+def _num(v, default=None):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+
+CALLOUT_ICONS = {
+    "info": "fa-circle-info", "success": "fa-circle-check",
+    "warning": "fa-triangle-exclamation", "idea": "fa-lightbulb",
+    "quote": "fa-quote-right", "note": "fa-pen",
+}
+CALLOUT_VARIANTS = set(CALLOUT_ICONS)
+IMG_LAYOUTS = {"contained", "wide", "full", "left", "right"}
+BTN_STYLES = {"solid", "outline", "soft"}
+HERO_HEIGHTS = {"small", "medium", "large"}
+
+
 def _slugify(text, used=None):
     """Heading anchor slug (stable-ish, de-duplicated) for future TOC links."""
     base = re.sub(r"<[^>]+>", "", text or "")
@@ -182,20 +215,95 @@ def _render_block(block, used_anchors):
         if not url:
             return ""
         caption = clean_inline(data.get("caption", ""))
-        alt = re.sub(r"<[^>]+>", "", caption) or "image"
-        fig_cls = ["pc-image"]
-        if data.get("stretched"):
-            fig_cls.append("pc-stretched")
-        if data.get("withBorder"):
+        alt = escape(re.sub(r"<[^>]+>", "", data.get("alt", "") or caption) or "image", quote=True)
+
+        # Layout — new `layout` field, falling back to legacy stretched flag.
+        layout = data.get("layout")
+        if layout not in IMG_LAYOUTS:
+            layout = "full" if data.get("stretched") else "contained"
+
+        # Filters / transforms / effects
+        filt = data.get("filters") or {}
+        fparts = []
+        for prop, key in (("brightness", "brightness"), ("contrast", "contrast"), ("saturate", "saturate")):
+            v = _num(filt.get(key))
+            if v is not None and round(v) != 100:
+                fparts.append(f"{prop}({round(v)}%)")
+        tparts = []
+        rot = _num(data.get("rotate"), 0)
+        if rot:
+            tparts.append(f"rotate({int(rot)}deg)")
+        if data.get("flipH"):
+            tparts.append("scaleX(-1)")
+        if data.get("flipV"):
+            tparts.append("scaleY(-1)")
+        istyle = []
+        if fparts:
+            istyle.append("filter:" + " ".join(fparts))
+        if tparts:
+            istyle.append("transform:" + " ".join(tparts))
+        op = _num(data.get("opacity"))
+        if op is not None and round(op) != 100:
+            istyle.append(f"opacity:{max(0, min(100, op)) / 100:g}")
+        rad = _num(data.get("radius"), 0)
+        if rad:
+            istyle.append(f"border-radius:{int(rad)}px")
+        istyle_attr = f' style="{";".join(istyle)}"' if istyle else ""
+
+        fig_cls = ["pc-image", f"pc-img-{layout}"]
+        if data.get("border") or data.get("withBorder"):
             fig_cls.append("pc-bordered")
-        if data.get("withBackground"):
-            fig_cls.append("pc-bg")
-        if cls:  # alignment tune
-            fig_cls.append(cls.split('"')[1])
+        if data.get("shadow"):
+            fig_cls.append("pc-shadow")
         figcap = f"<figcaption>{caption}</figcaption>" if caption else ""
         return (f'<figure class="{" ".join(fig_cls)}">'
-                f'<img src="{escape(url, quote=True)}" alt="{escape(alt, quote=True)}" loading="lazy">'
+                f'<img src="{escape(url, quote=True)}" alt="{alt}" loading="lazy"{istyle_attr}>'
                 f"{figcap}</figure>")
+
+    if btype == "callout":
+        variant = data.get("variant")
+        if variant not in CALLOUT_VARIANTS:
+            variant = "info"
+        icon = safe_icon(data.get("icon")) or CALLOUT_ICONS[variant]
+        text = clean_inline(data.get("text", ""))
+        return (f'<div class="pc-callout pc-callout-{variant}">'
+                f'<span class="pc-callout-icon"><i class="fas {icon}"></i></span>'
+                f'<div class="pc-callout-body">{text}</div></div>')
+
+    if btype == "button":
+        label = clean_inline(data.get("label", "")) or "Button"
+        href = safe_url(data.get("url")) or "#"
+        style = data.get("style") if data.get("style") in BTN_STYLES else "solid"
+        align = data.get("align") if data.get("align") in _ALIGN else "left"
+        return (f'<div class="pc-btn-wrap pc-align-{align}">'
+                f'<a class="pc-btn pc-btn-{style}" href="{href}">{label}</a></div>')
+
+    if btype == "hero":
+        heading = clean_inline(data.get("heading", ""))
+        sub = clean_inline(data.get("subheading", ""))
+        height = data.get("height") if data.get("height") in HERO_HEIGHTS else "medium"
+        align = data.get("align") if data.get("align") in _ALIGN else "center"
+        img = safe_url(data.get("image"))
+        bg = data.get("bg", "")
+        bg = bg if re.match(r"^#[0-9a-fA-F]{3,8}$", bg or "") else ""
+        styles = []
+        if img:
+            styles.append(f"background-image:linear-gradient(rgba(0,0,0,.35),rgba(0,0,0,.35)),url('{img}')")
+        elif bg:
+            styles.append(f"background:{bg}")
+        style_attr = f' style="{";".join(styles)}"' if styles else ""
+        parts = [f'<section class="pc-hero pc-hero-{height} pc-align-{align}{" pc-hero-img" if img else ""}"{style_attr}>',
+                 '<div class="pc-hero-inner">']
+        if heading:
+            parts.append(f"<h2>{heading}</h2>")
+        if sub:
+            parts.append(f"<p>{sub}</p>")
+        blabel = clean_inline(data.get("buttonLabel", ""))
+        bhref = safe_url(data.get("buttonUrl"))
+        if blabel and bhref:
+            parts.append(f'<a class="pc-btn pc-btn-solid" href="{bhref}">{blabel}</a>')
+        parts.append("</div></section>")
+        return "".join(parts)
 
     if btype == "gallery":
         images = data.get("images", []) or []
