@@ -1,4 +1,5 @@
 import os
+import json
 import hashlib
 import smtplib
 import secrets
@@ -18,12 +19,14 @@ from flask_dance.contrib.google import make_google_blueprint, google
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import Integer, String, Text, ForeignKey
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.exc import IntegrityError
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 import cloudinary
 import cloudinary.uploader
 
 from forms import CreatePostForm, CreateCanvasPostForm, RegisterForm, LoginForm, CommentForm, SearchForm, ContactForm
+from editor_render import render_blocks_to_html, html_to_blocks, estimate_reading_time
 
 load_dotenv()
 
@@ -121,6 +124,8 @@ app.register_blueprint(google_bp, url_prefix="/login")
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'dishasawantt@gmail.com')
 POSTS_PER_PAGE = 6
 VIDEO_EXTENSIONS = {'mp4', 'mov', 'avi', 'webm', 'mkv', 'ogg', 'ogv'}
+# Neutral placeholder cover for brand-new drafts that don't have one yet.
+DEFAULT_COVER = 'https://images.unsplash.com/photo-1478720568477-152d9b164e26?w=1200'
 
 
 class Base(DeclarativeBase):
@@ -155,6 +160,12 @@ class BlogPost(db.Model):
     canvas_data: Mapped[str] = mapped_column(Text, nullable=True)
     canvas_html: Mapped[str] = mapped_column(Text, nullable=True)
     canvas_css: Mapped[str] = mapped_column(Text, nullable=True)
+    # Block editor (Editor.js) — content_json is the source of truth, body holds
+    # the server-rendered HTML shown on the published page.
+    content_json: Mapped[str] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default='published')
+    reading_time: Mapped[int] = mapped_column(Integer, nullable=True)
+    updated_date: Mapped[str] = mapped_column(String(250), nullable=True)
     comments = relationship("Comment", back_populates="parent_post", cascade="all, delete-orphan")
 
 
@@ -292,6 +303,10 @@ def run_startup_migrations():
         'canvas_data': "TEXT",
         'canvas_html': "TEXT",
         'canvas_css': "TEXT",
+        'content_json': "TEXT",
+        'status': "VARCHAR(20) DEFAULT 'published'",
+        'reading_time': "INTEGER",
+        'updated_date': "VARCHAR(250)",
     }
     for name, sql_type in new_columns.items():
         if name not in existing_columns:
@@ -403,11 +418,19 @@ def google_callback():
     return redirect(url_for('login'))
 
 
+def visible_posts():
+    """Base query for publicly-visible posts (published; NULL treated as published
+    for rows that predate the status column)."""
+    return db.select(BlogPost).where(
+        db.or_(BlogPost.status == 'published', BlogPost.status.is_(None))
+    )
+
+
 @app.route('/')
 def get_all_posts():
     page = request.args.get('page', 1, type=int)
     category_id = request.args.get('category', type=int)
-    query = db.select(BlogPost).order_by(BlogPost.id.desc())
+    query = visible_posts().order_by(BlogPost.id.desc())
     if category_id:
         query = query.where(BlogPost.category_id == category_id)
     pagination = db.paginate(query, page=page, per_page=POSTS_PER_PAGE, error_out=False)
@@ -419,6 +442,9 @@ def get_all_posts():
 @app.route("/post/<int:post_id>", methods=["GET", "POST"])
 def show_post(post_id):
     post = db.get_or_404(BlogPost, post_id)
+    is_admin = current_user.is_authenticated and current_user.email == ADMIN_EMAIL
+    if post.status == 'draft' and not is_admin:
+        abort(404)
     form = CommentForm()
     if form.validate_on_submit():
         if not current_user.is_authenticated:
@@ -467,53 +493,149 @@ def upload_canvas_image():
     return jsonify(data=urls)
 
 
-@app.route("/new-post", methods=["GET", "POST"])
+def unique_post_title(title, exclude_id=None):
+    """BlogPost.title has a UNIQUE index; return a collision-free variant."""
+    base = ((title or "").strip() or "Untitled")[:250]
+    candidate, n = base, 2
+    while True:
+        q = db.select(BlogPost.id).where(BlogPost.title == candidate)
+        if exclude_id:
+            q = q.where(BlogPost.id != exclude_id)
+        if not db.session.execute(q).scalar():
+            return candidate
+        candidate = f"{base[:240]} ({n})"
+        n += 1
+
+
+def _content_doc(post):
+    """Editor.js document to load into the editor (or None for a blank post)."""
+    if post is None:
+        return None
+    if post.content_json:
+        try:
+            return json.loads(post.content_json)
+        except (ValueError, TypeError):
+            pass
+    if post.body:  # legacy CKEditor post — best-effort import
+        return html_to_blocks(post.body)
+    return None
+
+
+@app.route("/new-post")
 @admin_only
 def add_new_post():
-    form = CreatePostForm()
     categories = db.session.execute(db.select(Category)).scalars().all()
-    form.category.choices = [(c.id, c.name) for c in categories]
-    if form.validate_on_submit():
-        media_url = form.media_url.data
-        media_type = get_media_type(media_url) if media_url else 'image'
-        if form.media_upload.data:
-            uploaded_url, uploaded_type = upload_media(form.media_upload.data)
-            if uploaded_url:
-                media_url, media_type = uploaded_url, uploaded_type
-        if not media_url:
-            flash("Please provide a media URL or upload an image/video.")
-            return render_template("make-post.html", form=form, current_user=current_user)
-        db.session.add(BlogPost(
-            title=form.title.data, subtitle=form.subtitle.data, body=form.body.data,
-            media_url=media_url, media_type=media_type, author=current_user,
-            category_id=form.category.data, date=date.today().strftime("%B %d, %Y")
-        ))
-        db.session.commit()
-        return redirect(url_for("get_all_posts"))
-    return render_template("make-post.html", form=form, current_user=current_user)
+    return render_template("edit-post-block.html", post=None, is_edit=False,
+                           categories=categories, content_doc=None, cover_url='',
+                           current_user=current_user)
 
 
-@app.route("/edit-post/<int:post_id>", methods=["GET", "POST"])
+@app.route("/edit-post/<int:post_id>")
 @admin_only
 def edit_post(post_id):
     post = db.get_or_404(BlogPost, post_id)
+    if post.layout_type == 'canvas':
+        return redirect(url_for('edit_post_canvas', post_id=post.id))
     categories = db.session.execute(db.select(Category)).scalars().all()
-    form = CreatePostForm(title=post.title, subtitle=post.subtitle, media_url=post.media_url,
-                          body=post.body, category=post.category_id)
-    form.category.choices = [(c.id, c.name) for c in categories]
-    if form.validate_on_submit():
-        media_url = form.media_url.data
-        media_type = get_media_type(media_url) if media_url else post.media_type
-        if form.media_upload.data:
-            uploaded_url, uploaded_type = upload_media(form.media_upload.data)
-            if uploaded_url:
-                media_url, media_type = uploaded_url, uploaded_type
-        post.title, post.subtitle = form.title.data, form.subtitle.data
-        post.media_url, post.media_type = media_url, media_type
-        post.category_id, post.body = form.category.data, form.body.data
+    cover_url = post.media_url if post.media_url and post.media_url != DEFAULT_COVER else ''
+    return render_template("edit-post-block.html", post=post, is_edit=True,
+                           categories=categories, content_doc=_content_doc(post),
+                           cover_url=cover_url, current_user=current_user)
+
+
+@app.route("/api/posts/autosave", methods=["POST"])
+@admin_only
+def autosave_post():
+    payload = request.get_json(silent=True) or {}
+    content = payload.get('content_json')
+    content_str = json.dumps(content) if isinstance(content, (dict, list)) else (content or '')
+    body_html = render_blocks_to_html(content_str)
+    minutes, words = estimate_reading_time(content_str)
+    media_url = (payload.get('media_url') or '').strip()
+    media_type = get_media_type(media_url) if media_url else 'image'
+    category_id = payload.get('category_id') or None
+    subtitle = (payload.get('subtitle') or '').strip()
+    now = date.today().strftime("%B %d, %Y")
+    post_id = payload.get('id')
+
+    post = db.session.get(BlogPost, post_id) if post_id else None
+    if post_id and not post:
+        return jsonify(error='not found'), 404
+
+    if post is None:
+        # Set every NOT NULL column at construction: the unique_post_title()
+        # SELECT below would otherwise autoflush a half-built row.
+        post = BlogPost(
+            author=current_user, date=now, status='draft', layout_type='article',
+            title=unique_post_title(payload.get('title')), subtitle=subtitle,
+            body=body_html, content_json=content_str,
+            media_url=media_url or DEFAULT_COVER, media_type=media_type,
+            category_id=category_id, reading_time=minutes, updated_date=now,
+        )
+        db.session.add(post)
+    else:
+        post.title = unique_post_title(payload.get('title'), exclude_id=post.id)
+        post.subtitle = subtitle
+        post.category_id = category_id
+        if media_url:
+            post.media_url, post.media_type = media_url, media_type
+        post.body = body_html
+        post.content_json = content_str
+        post.reading_time = minutes
+        post.updated_date = now
+
+    try:
         db.session.commit()
-        return redirect(url_for("show_post", post_id=post.id))
-    return render_template("make-post.html", form=form, is_edit=True, current_user=current_user, post=post)
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify(error='save failed'), 500
+    return jsonify(id=post.id, status=post.status, title=post.title,
+                   saved_at=now, reading_time=minutes, word_count=words)
+
+
+@app.route("/api/posts/<int:post_id>/publish", methods=["POST"])
+@admin_only
+def publish_post(post_id):
+    post = db.get_or_404(BlogPost, post_id)
+    if post.content_json:
+        post.body = render_blocks_to_html(post.content_json)
+        post.reading_time, _ = estimate_reading_time(post.content_json)
+    if not (post.body or '').strip():
+        return jsonify(error='Add some content before publishing.'), 400
+    post.status = 'published'
+    post.updated_date = date.today().strftime("%B %d, %Y")
+    db.session.commit()
+    return jsonify(redirect=url_for('show_post', post_id=post.id))
+
+
+@app.route("/api/editor/upload-image", methods=["POST"])
+@admin_only
+def editor_upload_image():
+    f = request.files.get('image')
+    if not f or get_media_type(f.filename) != 'image':
+        return jsonify(success=0, message="Please choose an image file.")
+    url, _ = upload_media(f)
+    if not url:
+        return jsonify(success=0, message="Upload failed. Check Cloudinary configuration.")
+    return jsonify(success=1, file={"url": url})
+
+
+@app.route("/api/editor/fetch-image", methods=["POST"])
+@admin_only
+def editor_fetch_image():
+    url = (request.get_json(silent=True) or {}).get('url', '').strip()
+    if not url:
+        return jsonify(success=0, message="No URL provided.")
+    return jsonify(success=1, file={"url": url})
+
+
+@app.route("/drafts")
+@admin_only
+def list_drafts():
+    drafts = db.session.execute(
+        db.select(BlogPost).where(BlogPost.status == 'draft').order_by(BlogPost.id.desc())
+    ).scalars().all()
+    return render_template("drafts.html", drafts=drafts, current_user=current_user)
 
 
 @app.route("/new-post-canvas", methods=["GET", "POST"])
@@ -586,7 +708,7 @@ def search():
     page = request.args.get('page', 1, type=int)
     if not query:
         return render_template("search.html", posts=[], query=query, pagination=None, current_user=current_user)
-    search_query = db.select(BlogPost).where(
+    search_query = visible_posts().where(
         db.or_(BlogPost.title.ilike(f'%{query}%'), BlogPost.subtitle.ilike(f'%{query}%'), BlogPost.body.ilike(f'%{query}%'))
     ).order_by(BlogPost.id.desc())
     pagination = db.paginate(search_query, page=page, per_page=POSTS_PER_PAGE, error_out=False)
@@ -641,7 +763,7 @@ def robots_txt():
 
 @app.route("/sitemap.xml")
 def sitemap_xml():
-    posts = db.session.execute(db.select(BlogPost)).scalars().all()
+    posts = db.session.execute(visible_posts()).scalars().all()
     urls = [request.host_url, request.host_url + "about", request.host_url + "contact"]
     urls += [f"{request.host_url}post/{post.id}" for post in posts]
     body = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']

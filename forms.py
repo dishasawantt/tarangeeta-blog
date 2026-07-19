@@ -1,7 +1,6 @@
 import re
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileAllowed
-from flask_ckeditor import CKEditorField
 from wtforms import StringField, SubmitField, PasswordField, SelectField, TextAreaField, HiddenField
 from wtforms.validators import DataRequired, URL, Optional, Email, ValidationError
 
@@ -18,7 +17,7 @@ class CreatePostForm(FlaskForm):
     category = SelectField("Category", coerce=int, validators=[DataRequired()])
     media_url = StringField("Media URL", validators=[Optional(), URL()])
     media_upload = FileField("Upload Media", validators=[FileAllowed(ALLOWED_EXTENSIONS)])
-    body = CKEditorField("Blog Content", validators=[DataRequired()])
+    body = HiddenField()  # block editor content is saved via the autosave/publish JSON API
     submit = SubmitField("Submit Post")
 
 

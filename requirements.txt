@@ -9,6 +9,8 @@ SQLAlchemy==2.0.45
 Werkzeug==3.1.4
 WTForms==3.2.1
 cloudinary==1.44.1
+bleach==6.4.0
+tinycss2==1.5.1
 email-validator==2.3.0
 gunicorn==23.0.0
 psycopg2-binary==2.9.11

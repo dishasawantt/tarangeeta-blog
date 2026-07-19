@@ -15,7 +15,9 @@
           <h1>{{ post.title }}</h1>
           <h2 class="subheading">{{ post.subtitle }}</h2>
           <span class="meta">Posted by <a href="#">{{ post.author.name }}</a> on {{ post.date }}
+            {% if post.reading_time %} · {{ post.reading_time }} min read{% endif %}
             {% if post.category %}<span class="badge bg-light text-dark ms-2">{{ post.category.name }}</span>{% endif %}
+            {% if post.status == 'draft' %}<span class="badge bg-warning text-dark ms-2">Draft</span>{% endif %}
           </span>
         </div>
       </div>

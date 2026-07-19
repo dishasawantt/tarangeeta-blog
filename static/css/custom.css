@@ -926,3 +926,82 @@ video {
   line-height: 1.6;
   margin-bottom: 0.8rem;
 }
+
+/* ============================================================
+   Block editor (Editor.js) — published content rendering
+   ============================================================ */
+/* Alignment + line-spacing tunes */
+.post-content .pc-align-left { text-align: left !important; }
+.post-content .pc-align-center { text-align: center !important; }
+.post-content .pc-align-right { text-align: right !important; }
+.post-content .pc-align-justify { text-align: justify !important; }
+
+/* Caption block */
+.post-content .pc-caption {
+  text-align: center; font-size: 0.9rem; font-style: italic;
+  color: var(--soft-gray); margin: 0.25rem 0 1rem; text-align: center;
+}
+
+/* Checklist */
+.post-content .pc-checklist { list-style: none !important; padding-left: 0.25rem !important; }
+.post-content .pc-check { display: flex; align-items: flex-start; gap: 0.6rem; margin-bottom: 0.35rem !important; }
+.post-content .pc-check-box {
+  flex: 0 0 auto; width: 18px; height: 18px; margin-top: 3px; border-radius: 5px;
+  border: 2px solid var(--coral); background: transparent; position: relative;
+}
+.post-content .pc-check.pc-checked .pc-check-box { background: var(--coral); }
+.post-content .pc-check.pc-checked .pc-check-box::after {
+  content: ''; position: absolute; left: 4px; top: 0px; width: 5px; height: 10px;
+  border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.post-content .pc-check.pc-checked span:last-child { color: var(--soft-gray); text-decoration: line-through; }
+
+/* Code block */
+.post-content .pc-code {
+  background: #2A2520; color: #F0E8D6; border-radius: 10px; padding: 1rem 1.2rem;
+  overflow-x: auto; margin: 1.2rem 0; border: 1px solid rgba(139,119,92,0.25);
+}
+.post-content .pc-code code { font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace; font-size: 0.9rem; line-height: 1.55; background: none; color: inherit; }
+
+/* Divider */
+.post-content .pc-delimiter { border: none; text-align: center; margin: 2rem 0; height: auto; }
+.post-content .pc-delimiter::before { content: '· · ·'; letter-spacing: 0.6em; color: var(--coral); font-size: 1.2rem; }
+
+/* Inline color spans + highlight (author-styled) */
+.post-content .be-hl, .post-content mark { border-radius: 3px; padding: 0 3px; }
+.post-content .be-inline-code {
+  background: rgba(139,119,92,0.12); border: 1px solid rgba(139,119,92,0.2);
+  border-radius: 4px; padding: 1px 5px; font-family: ui-monospace, monospace; font-size: 0.88em;
+}
+
+/* Figures (images) with layout classes */
+.post-content .pc-image { margin: 1.4rem 0; }
+.post-content .pc-image img { border-radius: 8px; }
+.post-content .pc-image figcaption { text-align: center; font-size: 0.86rem; font-style: italic; color: var(--soft-gray); margin-top: 0.5rem; }
+.post-content .pc-image.pc-bordered img { border: 1px solid rgba(139,119,92,0.35); }
+.post-content .pc-image.pc-bg { background: rgba(139,119,92,0.08); padding: 1.2rem; border-radius: 10px; }
+.post-content .pc-image.pc-stretched img { width: 100%; }
+.post-content .pc-image.pc-align-left { float: left; max-width: 48%; margin: 0.4rem 1.4rem 0.8rem 0; }
+.post-content .pc-image.pc-align-right { float: right; max-width: 48%; margin: 0.4rem 0 0.8rem 1.4rem; }
+.post-content .pc-image.pc-align-center img { margin-left: auto; margin-right: auto; }
+
+/* Gallery grid */
+.post-content .post-gallery {
+  display: grid; grid-template-columns: repeat(var(--pg-cols, 3), 1fr); gap: 0.6rem; margin: 1.4rem 0;
+}
+.post-content .post-gallery figure { margin: 0; }
+.post-content .post-gallery img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; aspect-ratio: 1 / 1; }
+
+/* Tables */
+.post-content .pc-table-wrap { overflow-x: auto; margin: 1.4rem 0; }
+.post-content .pc-table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+.post-content .pc-table th, .post-content .pc-table td { border: 1px solid rgba(139,119,92,0.28); padding: 0.5rem 0.75rem; text-align: left; }
+.post-content .pc-table th { background: rgba(139,119,92,0.12); font-family: 'Playfair Display', serif; color: var(--deep-teal); }
+
+/* Blockquote attribution */
+.post-content blockquote cite { display: block; margin-top: 0.5rem; font-size: 0.85rem; font-style: normal; color: var(--soft-gray); }
+
+@media (max-width: 640px) {
+  .post-content .pc-image.pc-align-left, .post-content .pc-image.pc-align-right { float: none; max-width: 100%; margin: 1.2rem 0; }
+  .post-content .post-gallery { grid-template-columns: repeat(2, 1fr); }
+}
