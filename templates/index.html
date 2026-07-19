@@ -31,7 +31,6 @@
       {% if current_user.is_authenticated and current_user.email == ADMIN_EMAIL %}
       <div class="d-flex flex-wrap gap-2 justify-content-center mb-4">
         <a class="btn btn-primary btn-lg" href="{{ url_for('add_new_post') }}"><i class="fas fa-pen me-2"></i>New Post</a>
-        <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('add_new_canvas_post') }}"><i class="fas fa-object-group me-2"></i>New Canvas Post</a>
         <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('dashboard') }}"><i class="fas fa-table-columns me-2"></i>Dashboard</a>
       </div>
       {% endif %}
